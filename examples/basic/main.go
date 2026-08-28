@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"time"
-
 	"garlic-client"
 )
 
@@ -27,19 +26,19 @@ func main() {
 
 	client, err := garlic.New(config)
 	if err != nil {
-		log.Fatalf("❌ Failed to create client: %v", err)
+		log.Fatalf("Failed to create client: %v", err)
 	}
 	defer client.Close()
 
 	if err := client.Connect(); err != nil {
-		log.Fatalf("❌ Failed to connect/authenticate: %v", err)
+		log.Fatalf("Failed to connect/authenticate: %v", err)
 	}
-	fmt.Println("✅ Successfully connected and authenticated!")
+	fmt.Println("Successfully connected and authenticated!")
 
 	// Fetch system identity
 	ident, err := client.SystemIdentity()
 	if err != nil {
-		log.Printf("⚠️ Failed to get system identity: %v", err)
+		log.Printf("Failed to get system identity: %v", err)
 	} else {
 		fmt.Printf("Router Identity: %s\n", ident.Name)
 	}
@@ -47,7 +46,7 @@ func main() {
 	// Fetch system resources
 	res, err := client.SystemResource()
 	if err != nil {
-		log.Printf("⚠️ Failed to get system resources: %v", err)
+		log.Printf("Failed to get system resources: %v", err)
 	} else {
 		fmt.Printf("Router Version:  %s\n", res.Version)
 		fmt.Printf("Router CPU:      %s (%s cores)\n", res.CPU, res.CPUCount)

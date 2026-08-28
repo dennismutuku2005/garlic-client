@@ -27,17 +27,17 @@ func main() {
 
 	client, err := garlic.New(config)
 	if err != nil {
-		log.Fatalf("❌ Failed to create client: %v", err)
+		log.Fatalf("Failed to create client: %v", err)
 	}
 	defer client.Close()
 
 	if err := client.Connect(); err != nil {
-		log.Fatalf("❌ Failed to connect/authenticate: %v", err)
+		log.Fatalf("Failed to connect/authenticate: %v", err)
 	}
 
 	ifaces, err := client.InterfaceList()
 	if err != nil {
-		log.Fatalf("❌ Failed to retrieve interface list: %v", err)
+		log.Fatalf("Failed to retrieve interface list: %v", err)
 	}
 
 	fmt.Printf("\n%-5s %-20s %-10s %-8s %-8s %-8s\n", "ID", "Name", "Type", "MTU", "Running", "Disabled")
