@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"garlic-client/internal/protocol"
+	"github.com/dennismutuku2005/garlic-client/internal/protocol"
 )
 
 // Expose internal protocol types to the public garlic package using aliases.

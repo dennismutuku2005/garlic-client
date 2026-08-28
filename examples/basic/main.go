@@ -6,7 +6,7 @@ import (
 	"log"
 	"time"
 
-	"garlic-client"
+	"github.com/dennismutuku2005/garlic-client"
 )
 
 func main() {
