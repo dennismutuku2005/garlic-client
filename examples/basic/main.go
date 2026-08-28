@@ -10,21 +10,25 @@ import (
 )
 
 func main() {
-	addr := flag.String("addr", "167.99.9.95:9001", "MikroTik API address (ip:port)")
+	host := flag.String("host", "167.99.9.95", "MikroTik API host address")
+	port := flag.Int("port", 9001, "MikroTik API port (optional, 0 to use default)")
 	user := flag.String("user", "admin", "MikroTik username")
 	pass := flag.String("pass", "", "MikroTik password")
 	tls := flag.Bool("tls", false, "Use TLS connection")
 	flag.Parse()
 
-	fmt.Printf("=== Connecting to RouterOS API at %s ===\n", *addr)
+	fmt.Printf("=== Connecting to RouterOS API at %s (port: %d) ===\n", *host, *port)
 
 	var opts []garlic.Option
 	if *tls {
 		opts = append(opts, garlic.WithTLS())
 	}
+	if *port != 0 {
+		opts = append(opts, garlic.WithPort(*port))
+	}
 	opts = append(opts, garlic.WithTimeout(5*time.Second))
 
-	client, err := garlic.New(*addr, *user, *pass, opts...)
+	client, err := garlic.New(*host, *user, *pass, opts...)
 	if err != nil {
 		log.Fatalf("Failed to create client: %v", err)
 	}

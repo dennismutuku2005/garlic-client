@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"strconv"
 	"sync"
 	"time"
 
@@ -41,6 +42,14 @@ func WithTimeout(d time.Duration) Option {
 	}
 }
 
+// WithPort configures the client to use a custom port.
+// This overrides the port specified in the address or the default API port.
+func WithPort(port int) Option {
+	return func(c *Client) {
+		c.port = port
+	}
+}
+
 // Client is the main handler to communicate with a MikroTik router using RouterOS API.
 type Client struct {
 	address  string
@@ -48,6 +57,7 @@ type Client struct {
 	password string
 	tls      bool
 	timeout  time.Duration
+	port     int
 
 	conn   net.Conn
 	reader *bufio.Reader
@@ -60,7 +70,7 @@ type Client struct {
 }
 
 // New creates a new RouterOS client instance.
-// If the port is omitted from the address, it defaults to 8728 (or 8729 if WithTLS is used).
+// If the port is omitted from the address and not specified via WithPort, it defaults to 8728 (or 8729 if WithTLS is used).
 func New(address, username, password string, opts ...Option) (*Client, error) {
 	if address == "" {
 		return nil, fmt.Errorf("address is required")
@@ -85,13 +95,22 @@ func New(address, username, password string, opts ...Option) (*Client, error) {
 		opt(c)
 	}
 
-	// If no port is specified in the address, append the default port
-	if _, _, err := net.SplitHostPort(c.address); err != nil {
-		defaultPort := "8728"
-		if c.tls {
-			defaultPort = "8729"
+	if c.port != 0 {
+		// Override port
+		host, _, err := net.SplitHostPort(c.address)
+		if err != nil {
+			host = c.address
 		}
-		c.address = net.JoinHostPort(c.address, defaultPort)
+		c.address = net.JoinHostPort(host, strconv.Itoa(c.port))
+	} else {
+		// If no port is specified in the address and not overridden, append default
+		if _, _, err := net.SplitHostPort(c.address); err != nil {
+			defaultPort := "8728"
+			if c.tls {
+				defaultPort = "8729"
+			}
+			c.address = net.JoinHostPort(c.address, defaultPort)
+		}
 	}
 
 	return c, nil
