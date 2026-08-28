@@ -2,55 +2,6 @@
 
 `garlic-client` is a clean, robust, and highly optimized MikroTik RouterOS API client library written in Go. It supports both legacy MD5 challenge-response authentication (RouterOS v6) and modern plain text authentication (RouterOS v7/v6.43+), and features tag-based command multiplexing, non-blocking error/leak isolation, and automatic connection/TLS support.
 
-## Features
-
-- **Auto-Detect Login**: Automatically detects and handles legacy MD5 login and modern plain-text login.
-- **Concurrent Multiplexing**: Send multiple queries concurrently over a single TCP/TLS socket.
-- **Non-blocking & Leak Protection**: Avoids stalling the main reader thread if a single listener blocks or goes unresponsive.
-- **Low Memory Footprint**: Uses stack allocation optimizations for wire prefix operations.
-- **TLS Support**: Configurable port `8729` secure connections.
-
-## Quick Start
-
-```go
-package main
-
-import (
-	"fmt"
-	"log"
-	"time"
-
-	"garlic-client"
-)
-
-func main() {
-	config := garlic.Config{
-		Address:  "192.168.88.1:8728",
-		Username: "admin",
-		Password: "password",
-		Timeout:  5 * time.Second,
-	}
-
-	client, err := garlic.New(config)
-	if err != nil {
-		log.Fatalf("failed to initialize: %v", err)
-	}
-	defer client.Close()
-
-	if err := client.Connect(); err != nil {
-		log.Fatalf("failed to connect: %v", err)
-	}
-
-	// Fetch identity
-	ident, err := client.SystemIdentity()
-	if err != nil {
-		log.Fatalf("failed to query identity: %v", err)
-	}
-
-	fmt.Printf("Connected to router: %s\n", ident.Name)
-}
-```
-
 ## License
 
 Distributed under the MIT License. See [LICENSE.md](LICENSE.md) for details.
