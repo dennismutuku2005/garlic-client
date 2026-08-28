@@ -10,14 +10,14 @@ import (
 )
 
 func main() {
-	host := flag.String("host", "167.99.9.95", "MikroTik API host address")
-	port := flag.Int("port", 9001, "MikroTik API port (optional, 0 to use default)")
+	host := flag.String("host", "192.168.88.1", "MikroTik API host address")
+	port := flag.Int("port", 0, "MikroTik API port (optional, 0 to use default)")
 	user := flag.String("user", "admin", "MikroTik username")
 	pass := flag.String("pass", "", "MikroTik password")
 	tls := flag.Bool("tls", false, "Use TLS connection")
 	flag.Parse()
 
-	fmt.Printf("=== Fetching Interfaces from %s (port: %d) ===\n", *host, *port)
+	fmt.Printf("=== Fetching Interfaces dynamically from %s (port: %d) ===\n", *host, *port)
 
 	var opts []garlic.Option
 	if *tls {
@@ -37,22 +37,25 @@ func main() {
 	if err := client.Connect(); err != nil {
 		log.Fatalf("Failed to connect/authenticate: %v", err)
 	}
+	fmt.Println("Successfully connected and authenticated!")
 
-	ifaces, err := client.InterfaceList()
+	// Query /interface/print dynamically
+	cmd := garlic.NewCommand("/interface/print")
+	replies, err := client.Run(cmd)
 	if err != nil {
 		log.Fatalf("Failed to retrieve interface list: %v", err)
 	}
 
 	fmt.Printf("\n%-5s %-20s %-10s %-8s %-8s %-8s\n", "ID", "Name", "Type", "MTU", "Running", "Disabled")
 	fmt.Println("----------------------------------------------------------------------")
-	for _, iface := range ifaces {
-		fmt.Printf("%-5s %-20s %-10s %-8s %-8t %-8t\n",
-			iface.ID,
-			iface.Name,
-			iface.Type,
-			iface.MTU,
-			iface.Running,
-			iface.Disabled,
+	for _, reply := range replies {
+		fmt.Printf("%-5s %-20s %-10s %-8s %-8s %-8s\n",
+			reply.Map[".id"],
+			reply.Map["name"],
+			reply.Map["type"],
+			reply.Map["mtu"],
+			reply.Map["running"],
+			reply.Map["disabled"],
 		)
 	}
 }

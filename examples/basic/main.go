@@ -10,8 +10,8 @@ import (
 )
 
 func main() {
-	host := flag.String("host", "167.99.9.95", "MikroTik API host address")
-	port := flag.Int("port", 9001, "MikroTik API port (optional, 0 to use default)")
+	host := flag.String("host", "192.168.88.1", "MikroTik API host address")
+	port := flag.Int("port", 0, "MikroTik API port (optional, 0 to use default)")
 	user := flag.String("user", "admin", "MikroTik username")
 	pass := flag.String("pass", "", "MikroTik password")
 	tls := flag.Bool("tls", false, "Use TLS connection")
@@ -39,22 +39,22 @@ func main() {
 	}
 	fmt.Println("Successfully connected and authenticated!")
 
-	// Fetch system identity
-	ident, err := client.SystemIdentity()
+	// Fetch system identity dynamically
+	identReply, err := client.RunOne(garlic.NewCommand("/system/identity/print"))
 	if err != nil {
 		log.Printf("Failed to get system identity: %v", err)
 	} else {
-		fmt.Printf("Router Identity: %s\n", ident.Name)
+		fmt.Printf("Router Identity: %s\n", identReply.Map["name"])
 	}
 
-	// Fetch system resources
-	res, err := client.SystemResource()
+	// Fetch system resources dynamically
+	resReply, err := client.RunOne(garlic.NewCommand("/system/resource/print"))
 	if err != nil {
 		log.Printf("Failed to get system resources: %v", err)
 	} else {
-		fmt.Printf("Router Version:  %s\n", res.Version)
-		fmt.Printf("Router CPU:      %s (%s cores)\n", res.CPU, res.CPUCount)
-		fmt.Printf("CPU Load:        %s%%\n", res.CPULoad)
-		fmt.Printf("Free Memory:     %s / %s bytes\n", res.FreeMemory, res.TotalMemory)
+		fmt.Printf("Router Version:  %s\n", resReply.Map["version"])
+		fmt.Printf("Router CPU:      %s (%s cores)\n", resReply.Map["cpu"], resReply.Map["cpu-count"])
+		fmt.Printf("CPU Load:        %s%%\n", resReply.Map["cpu-load"])
+		fmt.Printf("Free Memory:     %s / %s bytes\n", resReply.Map["free-memory"], resReply.Map["total-memory"])
 	}
 }
