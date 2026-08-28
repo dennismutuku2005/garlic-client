@@ -88,10 +88,16 @@ func (c *Client) Connect() error {
 		Writer: conn,
 	}
 
+	// Set deadline for the login handshake to prevent hanging on non-API ports (e.g. Winbox)
+	conn.SetDeadline(time.Now().Add(c.config.Timeout))
+
 	if err := protocol.Login(rw, c.config.Username, c.config.Password); err != nil {
 		conn.Close()
 		return fmt.Errorf("login failed: %w", err)
 	}
+
+	// Clear the deadline for normal background operation
+	conn.SetDeadline(time.Time{})
 
 	c.mu.Lock()
 	c.conn = conn
