@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -94,7 +95,11 @@ func (c *Client) Connect() error {
 
 	if err := protocol.Login(rw, c.config.Username, c.config.Password); err != nil {
 		conn.Close()
-		return fmt.Errorf("login failed: %w", err)
+		var netErr net.Error
+		if errors.As(err, &netErr) && netErr.Timeout() {
+			return fmt.Errorf("login timed out")
+		}
+		return err
 	}
 
 	// Clear the deadline for normal background operation
