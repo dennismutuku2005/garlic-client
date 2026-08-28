@@ -4,12 +4,19 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"sync"
 )
 
-// WriteWord encodes a string word in RouterOS length-prefixed format using stack-allocated buffers.
+var bufPool = sync.Pool{
+	New: func() interface{} {
+		b := make([]byte, 1024)
+		return &b
+	},
+}
+
+// WriteWord encodes a string word in RouterOS length-prefixed format.
 func WriteWord(w io.Writer, word string) error {
-	data := []byte(word)
-	length := len(data)
+	length := len(word)
 
 	var lenBytes []byte
 	var localBuf [5]byte
@@ -35,7 +42,7 @@ func WriteWord(w io.Writer, word string) error {
 	if _, err := w.Write(lenBytes); err != nil {
 		return fmt.Errorf("failed to write word length: %w", err)
 	}
-	if _, err := w.Write(data); err != nil {
+	if _, err := io.WriteString(w, word); err != nil {
 		return fmt.Errorf("failed to write word data: %w", err)
 	}
 	return nil
@@ -84,10 +91,27 @@ func ReadWord(r io.Reader) (string, error) {
 		return "", nil
 	}
 
-	data := make([]byte, length)
+	var data []byte
+	var poolBuf *[]byte
+
+	if length <= 1024 {
+		poolBuf = bufPool.Get().(*[]byte)
+		data = (*poolBuf)[:length]
+	} else {
+		data = make([]byte, length)
+	}
+
 	if _, err := io.ReadFull(r, data); err != nil {
+		if poolBuf != nil {
+			bufPool.Put(poolBuf)
+		}
 		return "", fmt.Errorf("failed to read word content of length %d: %w", length, err)
 	}
 
-	return string(data), nil
+	s := string(data)
+
+	if poolBuf != nil {
+		bufPool.Put(poolBuf)
+	}
+	return s, nil
 }

@@ -1,6 +1,7 @@
 package protocol
 
 import (
+	"strconv"
 	"sync"
 	"sync/atomic"
 )
@@ -26,7 +27,7 @@ func NewAsyncManager() *AsyncManager {
 // NextTag generates a unique tag for a command.
 func (m *AsyncManager) NextTag() string {
 	seq := atomic.AddUint64(&m.tagSeq, 1)
-	return "t" + string(rune('a'+(seq%26))) + string(rune('0'+(seq/26%10))) + "-" + string(rune('0'+(seq%100)))
+	return "t" + strconv.FormatUint(seq, 10)
 }
 
 // Register registers a listener channel for the given tag.

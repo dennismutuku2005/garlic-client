@@ -198,16 +198,10 @@ func (c *Client) readLoop() {
 		default:
 		}
 
-		sentence, err := protocol.ReadSentence(c.reader)
+		reply, err := protocol.ReadReply(c.reader)
 		if err != nil {
-			// Socket read error or closed
+			// Socket read error, closed or desynced protocol
 			return
-		}
-
-		reply, err := protocol.ParseReply(sentence)
-		if err != nil {
-			// Ignore invalid sentence and try to keep reading
-			continue
 		}
 
 		if reply.Type == "!fatal" {
@@ -270,7 +264,7 @@ func (c *Client) Run(cmd *Command) ([]*Reply, error) {
 		c.mu.Unlock()
 		return nil, protocol.ErrNotConnected
 	}
-	err := protocol.WriteSentence(c.conn, cmd.Sentence())
+	err := protocol.WriteCommand(c.conn, cmd)
 	c.mu.Unlock()
 
 	if err != nil {
@@ -323,7 +317,7 @@ func (c *Client) RunAsync(cmd *Command) (<-chan *Reply, error) {
 		c.async.Unregister(cmd.Tag)
 		return nil, protocol.ErrNotConnected
 	}
-	err := protocol.WriteSentence(c.conn, cmd.Sentence())
+	err := protocol.WriteCommand(c.conn, cmd)
 	c.mu.Unlock()
 
 	if err != nil {

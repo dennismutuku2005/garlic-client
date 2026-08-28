@@ -12,18 +12,13 @@ import (
 func Login(rw io.ReadWriter, username, password string) error {
 	// 1. Attempt modern login (sending username and password directly)
 	loginCmd := NewCommand("/login").Arg("name", username).Arg("password", password)
-	if err := WriteSentence(rw, loginCmd.Sentence()); err != nil {
+	if err := WriteCommand(rw, loginCmd); err != nil {
 		return fmt.Errorf("failed to send initial login command: %w", err)
 	}
 
-	replyWords, err := ReadSentence(rw)
+	reply, err := ReadReply(rw)
 	if err != nil {
-		return fmt.Errorf("failed to read login response: %w", err)
-	}
-
-	reply, err := ParseReply(replyWords)
-	if err != nil {
-		return fmt.Errorf("failed to parse login response: %w", err)
+		return fmt.Errorf("failed to read and parse login response: %w", err)
 	}
 
 	if err := reply.AsError(); err != nil {
@@ -40,18 +35,13 @@ func Login(rw io.ReadWriter, username, password string) error {
 			}
 
 			legacyLoginCmd := NewCommand("/login").Arg("name", username).Arg("response", md5Response)
-			if err := WriteSentence(rw, legacyLoginCmd.Sentence()); err != nil {
+			if err := WriteCommand(rw, legacyLoginCmd); err != nil {
 				return fmt.Errorf("failed to send legacy login response: %w", err)
 			}
 
-			legacyReplyWords, err := ReadSentence(rw)
+			legacyReply, err := ReadReply(rw)
 			if err != nil {
-				return fmt.Errorf("failed to read legacy login response: %w", err)
-			}
-
-			legacyReply, err := ParseReply(legacyReplyWords)
-			if err != nil {
-				return fmt.Errorf("failed to parse legacy login response: %w", err)
+				return fmt.Errorf("failed to read and parse legacy login response: %w", err)
 			}
 
 			if err := legacyReply.AsError(); err != nil {

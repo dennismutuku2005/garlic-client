@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"fmt"
+	"io"
 	"strings"
 )
 
@@ -20,7 +21,6 @@ func ParseReply(sentence []string) (*Reply, error) {
 
 	rep := &Reply{
 		Type: sentence[0],
-		Map:  make(map[string]string),
 	}
 
 	// Validate reply type
@@ -35,6 +35,9 @@ func ParseReply(sentence []string) (*Reply, error) {
 		if strings.HasPrefix(word, ".tag=") {
 			rep.Tag = word[5:]
 		} else if strings.HasPrefix(word, "=") {
+			if rep.Map == nil {
+				rep.Map = make(map[string]string)
+			}
 			// Format is =key=value (or =key=)
 			// Find the index of the second '=' which separates key and value
 			valIdx := strings.Index(word[1:], "=")
@@ -44,6 +47,58 @@ func ParseReply(sentence []string) (*Reply, error) {
 				rep.Map[key] = val
 			} else {
 				// No second '=' found, treat the whole thing as a key with empty value
+				rep.Map[word[1:]] = ""
+			}
+		}
+	}
+
+	return rep, nil
+}
+
+// ReadReply reads a RouterOS reply sentence directly from the reader and parses it on the fly.
+// This completely avoids allocating temporary string slices for sentences.
+func ReadReply(r io.Reader) (*Reply, error) {
+	typeWord, err := ReadWord(r)
+	if err != nil {
+		return nil, err
+	}
+	if typeWord == "" {
+		return nil, fmt.Errorf("unexpected empty reply sentence")
+	}
+
+	rep := &Reply{
+		Type: typeWord,
+	}
+
+	// Validate reply type
+	switch rep.Type {
+	case "!re", "!done", "!trap", "!fatal":
+		// valid types
+	default:
+		return nil, fmt.Errorf("invalid reply type: %q", rep.Type)
+	}
+
+	for {
+		word, err := ReadWord(r)
+		if err != nil {
+			return nil, err
+		}
+		if word == "" {
+			break
+		}
+
+		if strings.HasPrefix(word, ".tag=") {
+			rep.Tag = word[5:]
+		} else if strings.HasPrefix(word, "=") {
+			if rep.Map == nil {
+				rep.Map = make(map[string]string)
+			}
+			valIdx := strings.Index(word[1:], "=")
+			if valIdx >= 0 {
+				key := word[1 : valIdx+1]
+				val := word[valIdx+2:]
+				rep.Map[key] = val
+			} else {
 				rep.Map[word[1:]] = ""
 			}
 		}
