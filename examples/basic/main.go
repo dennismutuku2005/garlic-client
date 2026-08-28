@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"time"
+
 	"garlic-client"
 )
 
@@ -16,15 +17,14 @@ func main() {
 	flag.Parse()
 
 	fmt.Printf("=== Connecting to RouterOS API at %s ===\n", *addr)
-	config := garlic.Config{
-		Address:  *addr,
-		Username: *user,
-		Password: *pass,
-		TLS:      *tls,
-		Timeout:  5 * time.Second,
-	}
 
-	client, err := garlic.New(config)
+	var opts []garlic.Option
+	if *tls {
+		opts = append(opts, garlic.WithTLS())
+	}
+	opts = append(opts, garlic.WithTimeout(5*time.Second))
+
+	client, err := garlic.New(*addr, *user, *pass, opts...)
 	if err != nil {
 		log.Fatalf("Failed to create client: %v", err)
 	}

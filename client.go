@@ -24,9 +24,31 @@ type FatalError = protocol.FatalError
 // Expose function aliases for convenience.
 var NewCommand = protocol.NewCommand
 
+// Option defines a functional configuration option for the RouterOS client.
+type Option func(*Client)
+
+// WithTLS configures the client to connect using secure TLS on the default API port (8729).
+func WithTLS() Option {
+	return func(c *Client) {
+		c.tls = true
+	}
+}
+
+// WithTimeout sets a custom connection timeout for TCP dial and login handshakes.
+func WithTimeout(d time.Duration) Option {
+	return func(c *Client) {
+		c.timeout = d
+	}
+}
+
 // Client is the main handler to communicate with a MikroTik router using RouterOS API.
 type Client struct {
-	config Config
+	address  string
+	username string
+	password string
+	tls      bool
+	timeout  time.Duration
+
 	conn   net.Conn
 	reader *bufio.Reader
 	async  *protocol.AsyncManager
@@ -38,14 +60,41 @@ type Client struct {
 }
 
 // New creates a new RouterOS client instance.
-func New(cfg Config) (*Client, error) {
+// If the port is omitted from the address, it defaults to 8728 (or 8729 if WithTLS is used).
+func New(address, username, password string, opts ...Option) (*Client, error) {
+	if address == "" {
+		return nil, fmt.Errorf("address is required")
+	}
+	if username == "" {
+		return nil, fmt.Errorf("username is required")
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 
-	return &Client{
-		config: cfg,
-		ctx:    ctx,
-		cancel: cancel,
-	}, nil
+	c := &Client{
+		address:  address,
+		username: username,
+		password: password,
+		timeout:  10 * time.Second, // Default connection timeout
+		ctx:      ctx,
+		cancel:   cancel,
+	}
+
+	// Apply functional options
+	for _, opt := range opts {
+		opt(c)
+	}
+
+	// If no port is specified in the address, append the default port
+	if _, _, err := net.SplitHostPort(c.address); err != nil {
+		defaultPort := "8728"
+		if c.tls {
+			defaultPort = "8729"
+		}
+		c.address = net.JoinHostPort(c.address, defaultPort)
+	}
+
+	return c, nil
 }
 
 // Connect establishes the TCP/TLS connection to the router and completes the login handshake.
@@ -58,26 +107,22 @@ func (c *Client) Connect() error {
 	c.closed = false
 	c.mu.Unlock()
 
-	if err := c.config.Validate(); err != nil {
-		return err
-	}
-
 	var conn net.Conn
 	var err error
 
-	if c.config.TLS {
+	if c.tls {
 		tlsConfig := &tls.Config{
 			InsecureSkipVerify: true,
 		}
-		dialer := &net.Dialer{Timeout: c.config.Timeout}
-		conn, err = tls.DialWithDialer(dialer, "tcp", c.config.Address, tlsConfig)
+		dialer := &net.Dialer{Timeout: c.timeout}
+		conn, err = tls.DialWithDialer(dialer, "tcp", c.address, tlsConfig)
 	} else {
-		dialer := net.Dialer{Timeout: c.config.Timeout}
-		conn, err = dialer.DialContext(c.ctx, "tcp", c.config.Address)
+		dialer := net.Dialer{Timeout: c.timeout}
+		conn, err = dialer.DialContext(c.ctx, "tcp", c.address)
 	}
 
 	if err != nil {
-		return fmt.Errorf("failed to connect to %s: %w", c.config.Address, err)
+		return fmt.Errorf("failed to connect to %s: %w", c.address, err)
 	}
 
 	// 1. Perform login handshake synchronously using buffered reader and direct connection writer
@@ -91,9 +136,9 @@ func (c *Client) Connect() error {
 	}
 
 	// Set deadline for the login handshake to prevent hanging on non-API ports (e.g. Winbox)
-	conn.SetDeadline(time.Now().Add(c.config.Timeout))
+	conn.SetDeadline(time.Now().Add(c.timeout))
 
-	if err := protocol.Login(rw, c.config.Username, c.config.Password); err != nil {
+	if err := protocol.Login(rw, c.username, c.password); err != nil {
 		conn.Close()
 		var netErr net.Error
 		if errors.As(err, &netErr) && netErr.Timeout() {
@@ -107,7 +152,7 @@ func (c *Client) Connect() error {
 
 	c.mu.Lock()
 	c.conn = conn
-	c.reader = br // Reuse the same buffered reader to prevent losing buffered data bytes
+	c.reader = br
 	c.async = protocol.NewAsyncManager()
 	c.mu.Unlock()
 
