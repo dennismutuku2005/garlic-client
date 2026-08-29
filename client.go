@@ -21,6 +21,7 @@ type Command = protocol.Command
 type Reply = protocol.Reply
 type TrapError = protocol.TrapError
 type FatalError = protocol.FatalError
+type ClientError = protocol.ClientError
 
 // Expose function aliases for convenience.
 var NewCommand = protocol.NewCommand
@@ -73,10 +74,10 @@ type Client struct {
 // If the port is omitted from the address and not specified via WithPort, it defaults to 8728 (or 8729 if WithTLS is used).
 func New(address, username, password string, opts ...Option) (*Client, error) {
 	if address == "" {
-		return nil, fmt.Errorf("address is required")
+		return nil, wrapError(fmt.Errorf("address is required"))
 	}
 	if username == "" {
-		return nil, fmt.Errorf("username is required")
+		return nil, wrapError(fmt.Errorf("username is required"))
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -141,7 +142,7 @@ func (c *Client) Connect() error {
 	}
 
 	if err != nil {
-		return fmt.Errorf("failed to connect to %s: %w", c.address, err)
+		return wrapError(fmt.Errorf("failed to connect to %s: %w", c.address, err))
 	}
 
 	// 1. Perform login handshake synchronously using buffered reader and direct connection writer
@@ -161,9 +162,9 @@ func (c *Client) Connect() error {
 		conn.Close()
 		var netErr net.Error
 		if errors.As(err, &netErr) && netErr.Timeout() {
-			return fmt.Errorf("login timed out")
+			return wrapError(fmt.Errorf("login timed out"))
 		}
-		return err
+		return wrapError(err)
 	}
 
 	// Clear the deadline for normal background operation
@@ -262,19 +263,19 @@ func (c *Client) Run(cmd *Command) ([]*Reply, error) {
 	c.mu.Lock()
 	if c.closed || c.conn == nil {
 		c.mu.Unlock()
-		return nil, protocol.ErrNotConnected
+		return nil, wrapError(protocol.ErrNotConnected)
 	}
 	err := protocol.WriteCommand(c.conn, cmd)
 	c.mu.Unlock()
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to send command sentence: %w", err)
+		return nil, wrapError(fmt.Errorf("failed to send command sentence: %w", err))
 	}
 
 	var replies []*Reply
 	for reply := range ch {
 		if err := reply.AsError(); err != nil {
-			return nil, err
+			return nil, wrapError(err)
 		}
 		if reply.Type == "!re" {
 			replies = append(replies, reply)
@@ -291,7 +292,7 @@ func (c *Client) RunOne(cmd *Command) (*Reply, error) {
 		return nil, err
 	}
 	if len(replies) == 0 {
-		return nil, fmt.Errorf("no replies returned for command %s", cmd.Name)
+		return nil, wrapError(fmt.Errorf("no replies returned for command %s", cmd.Name))
 	}
 	return replies[0], nil
 }
@@ -315,14 +316,14 @@ func (c *Client) RunAsync(cmd *Command) (<-chan *Reply, error) {
 	if c.closed || c.conn == nil {
 		c.mu.Unlock()
 		c.async.Unregister(cmd.Tag)
-		return nil, protocol.ErrNotConnected
+		return nil, wrapError(protocol.ErrNotConnected)
 	}
 	err := protocol.WriteCommand(c.conn, cmd)
 	c.mu.Unlock()
 
 	if err != nil {
 		c.async.Unregister(cmd.Tag)
-		return nil, fmt.Errorf("failed to send async command sentence: %w", err)
+		return nil, wrapError(fmt.Errorf("failed to send async command sentence: %w", err))
 	}
 
 	return ch, nil
@@ -356,4 +357,21 @@ func (c *Client) GetConnection() net.Conn {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.conn
+}
+
+func wrapError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var trapErr *protocol.TrapError
+	var fatalErr *protocol.FatalError
+	var clientErr *protocol.ClientError
+	if errors.As(err, &trapErr) || errors.As(err, &fatalErr) || errors.As(err, &clientErr) {
+		return err
+	}
+	return &protocol.ClientError{
+		Status:  "error",
+		Message: err.Error(),
+		Err:     err,
+	}
 }

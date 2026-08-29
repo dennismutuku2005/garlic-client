@@ -113,11 +113,13 @@ func (r *Reply) AsError() error {
 	switch r.Type {
 	case "!trap":
 		return &TrapError{
+			Status:   "trap",
 			Category: r.Map["category"],
 			Message:  r.Map["message"],
 		}
 	case "!fatal":
 		return &FatalError{
+			Status:  "fatal",
 			Message: r.Map["message"],
 		}
 	}
